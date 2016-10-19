@@ -1,4 +1,6 @@
-from messaging.service import MessageReceiver, MessageSender, BaseMessageHandler, BaseMessage
+import multiprocessing
+
+from messaging import TCPMessageReceiver, TCPMessageSender, BaseMessage, BaseMessageHandler
 
 
 class RequestMessage(BaseMessage):
@@ -13,7 +15,7 @@ class ReplyMessage(BaseMessage):
 
 class Local(BaseMessageHandler):
     def __init__(self, address):
-        self.__receiver = MessageReceiver(address, self)
+        self.__receiver = TCPMessageReceiver(address, self)
         self.address = self.__receiver.address
 
     def request(self, address):
@@ -33,30 +35,22 @@ class Local(BaseMessageHandler):
 
 class Remote:
     def __init__(self, address):
-        self.__sender = MessageSender()
+        self.__sender = TCPMessageSender()
         self.address = address
 
     def reply(self, message):
         rep = self.__sender.send_and_receive(self.address, message)
-        assert isinstance(rep, RequestMessage)
+        assert isinstance(rep, ReplyMessage)
         return rep.text
 
 
+def invoke_node():
+    n = Local(('127.0.0.1', 0))
+    print('node created: ' + str(n.address))
+
 if __name__ == '__main__':
-    n1 = Local(('127.0.0.1', 0))
-    n2 = Local(('127.0.0.1', 0))
-
-    print('node created: ' + str(n1.address))
-    print('node created: ' + str(n2.address))
-
-    n1.request(n2.address)
-    n1.request(n2.address)
-    n1.request(n2.address)
-    n1.request(n2.address)
-    n1.request(n2.address)
-
-    n2.request(n1.address)
-    n2.request(n1.address)
-    n2.request(n1.address)
-    n2.request(n1.address)
-    n2.request(n1.address)
+    jobs = []
+    for i in range(5000):
+        p = multiprocessing.Process(target=invoke_node)
+        jobs.append(p)
+        p.start()
