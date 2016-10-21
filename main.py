@@ -1,6 +1,7 @@
 import multiprocessing
 
-from messaging import TCPMessageReceiver, TCPMessageSender, BaseMessage, BaseMessageHandler
+from messaging import BaseMessage, BaseMessageHandler
+from messaging.tcp import TCPMessageReceiver, TCPMessageSender
 
 
 class RequestMessage(BaseMessage):
