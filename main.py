@@ -1,7 +1,10 @@
-import multiprocessing
+import random
 
-from messaging import BaseMessage, BaseMessageHandler
-from messaging.tcp import TCPMessageReceiver, TCPMessageSender
+from messaging import BaseMessage
+# from messaging.tcp import TCPMessageReceiver as MessageReceiver
+# from messaging.tcp import TCPMessageSender as MessageSender
+from messaging.udp import UDPMessageReceiver as MessageReceiver
+from messaging.udp import UDPMessageSender as MessageSender
 
 
 class RequestMessage(BaseMessage):
@@ -14,44 +17,49 @@ class ReplyMessage(BaseMessage):
         self.text = text
 
 
-class Local(BaseMessageHandler):
+class Local:
     def __init__(self, address):
-        self.__receiver = TCPMessageReceiver(address, self)
+        self.__receiver = MessageReceiver(address, self.process)
         self.address = self.__receiver.address
 
-    def request(self, address):
+    def greet(self, address):
         remote = Remote(address)
-        text = remote.reply(RequestMessage('Nice to meet you! from ' + str(self.address)))
-        print(text)
+        request = RequestMessage('Nice to meet you! I am ' + str(self.address))
+        reply = remote.reply(request)
+        print(reply.text)
 
-    def process(self, message):
+    def process(self, request):
         reply = None
 
-        if isinstance(message, RequestMessage):
-            print(message.text)
-            reply = ReplyMessage('Nice to meet you too! from' + str(self.address))
+        if isinstance(request, RequestMessage):
+            print(request.text)
+            reply = ReplyMessage('Nice to meet you too! I am ' + str(self.address))
 
         return reply
 
 
 class Remote:
     def __init__(self, address):
-        self.__sender = TCPMessageSender()
-        self.address = address
+        self.__sender = MessageSender(address)
+        self.address = self.__sender.address
 
-    def reply(self, message):
-        rep = self.__sender.send_and_receive(self.address, message)
-        assert isinstance(rep, ReplyMessage)
-        return rep.text
+    def reply(self, request):
+        return self.__sender.send_and_receive(request)
 
 
-def invoke_node():
-    n = Local(('127.0.0.1', 0))
-    print('node created: ' + str(n.address))
+def main():
+    node = []
+
+    for i in range(1000):
+        n = Local(('127.0.0.1', 0))
+        print("node #{} created at {}".format(i, n.address))
+        node.append(n)
+
+    for i in range(100):
+        src = random.randrange(1000)
+        dst = random.randrange(1000)
+        node[src].greet(node[dst].address)
+
 
 if __name__ == '__main__':
-    jobs = []
-    for i in range(5000):
-        p = multiprocessing.Process(target=invoke_node)
-        jobs.append(p)
-        p.start()
+    main()

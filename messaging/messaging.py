@@ -1,4 +1,3 @@
-import pickle
 import selectors
 try:
     import threading
@@ -20,21 +19,13 @@ class BaseMessage:
     pass
 
 
-class BaseMessageHandler:
-
-    """Base class for message handlers."""
-
-    def process(self, message):
-        pass
-
-
 class BaseMessagingServer:
     max_packet_size = 8192
     timeout = None
 
-    def __init__(self, address, handler):
+    def __init__(self, address, process):
         self.address = address
-        self.handler = handler
+        self.process = process
         self.__is_shutdown = threading.Event()
         self.__shutdown_request = False
 
@@ -114,9 +105,7 @@ class BaseMessagingServer:
         pass
 
     def finish_request(self, request, client_address):
-        message = self.handler.process(pickle.loads(request.recv(self.max_packet_size)))
-        if message is not None:
-            request.sendall(pickle.dumps(message))
+        pass
 
     def shutdown_request(self, request):
         self.close_request(request)
@@ -125,12 +114,12 @@ class BaseMessagingServer:
         pass
 
     def handle_error(self, request, client_address):
-        print('-'*40)
+        print('-' * 40)
         print('Exception happened during processing of request from', end=' ')
         print(client_address)
         import traceback
         traceback.print_exc()
-        print('-'*40)
+        print('-' * 40)
 
 
 class ThreadingMixIn:
@@ -156,10 +145,10 @@ class BaseMessageReceiver:
 
 
 class BaseMessagingClient:
-    def send(self, address, message):
+    def send(self, address, request):
         pass
 
-    def send_and_receive(self, address, message):
+    def send_and_receive(self, address, request):
         pass
 
 
@@ -167,8 +156,8 @@ class BaseMessageSender:
     def __init__(self, address):
         self.address = address
 
-    def send(self, message):
+    def send(self, request):
         pass
 
-    def send_and_receive(self, message):
+    def send_and_receive(self, request):
         pass

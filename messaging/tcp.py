@@ -17,8 +17,8 @@ class TCPMessagingServer(BaseMessagingServer):
     request_queue_size = 5
     allow_reuse_address = False
 
-    def __init__(self, address, handler, bind_and_activate=True):
-        BaseMessagingServer.__init__(self, address, handler)
+    def __init__(self, address, process, bind_and_activate=True):
+        BaseMessagingServer.__init__(self, address, process)
         self.socket = socket.socket(self.address_family, self.socket_type)
         if bind_and_activate:
             try:
@@ -46,6 +46,11 @@ class TCPMessagingServer(BaseMessagingServer):
     def get_request(self):
         return self.socket.accept()
 
+    def finish_request(self, request, client_address):
+        reply = self.process(pickle.loads(request.recv(self.max_packet_size)))
+        if reply is not None:
+            request.sendall(pickle.dumps(reply))
+
     def shutdown_request(self, request):
         try:
             request.shutdown(socket.SHUT_WR)
@@ -68,8 +73,8 @@ class TCPMessageReceiver(BaseMessageReceiver):
 
     """TCP message receiver class."""
 
-    def __init__(self, address, handler):
-        self.__receiver = ThreadingTCPMessagingServer(address, handler)
+    def __init__(self, address, process):
+        self.__receiver = ThreadingTCPMessagingServer(address, process)
         self.address = self.__receiver.address
         receiver_thread = threading.Thread(target=self.__receiver.serve_forever)
         receiver_thread.daemon = True
@@ -88,16 +93,16 @@ class TCPMessagingClient(BaseMessagingClient):
     address_family = socket.AF_INET
     socket_type = socket.SOCK_STREAM
 
-    def send(self, address, message):
-        client_socket = socket.socket(self.address_family, self.socket_type)
-        client_socket.connect(address)
-        client_socket.sendall(pickle.dumps(message))
+    def send(self, address, request):
+        with socket.socket(self.address_family, self.socket_type) as client_socket:
+            client_socket.connect(address)
+            client_socket.sendall(pickle.dumps(request))
 
-    def send_and_receive(self, address, message):
-        client_socket = socket.socket(self.address_family, self.socket_type)
-        client_socket.connect(address)
-        client_socket.sendall(pickle.dumps(message))
-        return pickle.loads(client_socket.recv(self.max_packet_size))
+    def send_and_receive(self, address, request):
+        with socket.socket(self.address_family, self.socket_type) as client_socket:
+            client_socket.connect(address)
+            client_socket.sendall(pickle.dumps(request))
+            return pickle.loads(client_socket.recv(self.max_packet_size))
 
 
 class TCPMessageSender(BaseMessageSender):
@@ -109,8 +114,8 @@ class TCPMessageSender(BaseMessageSender):
     def __init__(self, address):
         super().__init__(address)
 
-    def send(self, message):
-        self.__sender.send(self.address, message)
+    def send(self, request):
+        self.__sender.send(self.address, request)
 
-    def send_and_receive(self, message):
-        return self.__sender.send_and_receive(self.address, message)
+    def send_and_receive(self, request):
+        return self.__sender.send_and_receive(self.address, request)
