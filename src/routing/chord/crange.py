@@ -35,13 +35,17 @@ class crange:
             n += 1
 
     def __contains__(self, n):
-        if self.start > self.stop:
+        if self.start >= self.stop:
             return self.start <= n < self.modulo or 0 <= n < self.stop
         else:
             return self.start <= n < self.stop
+
+    def __repr__(self):
+        return 'crange({}, {}, {})'.format(self.start, self.stop, self.modulo)
 
 
 if __name__ == '__main__':
     print(list(crange(7, 3, 2 ** 3)))
     print(3 in crange(7, 3, 2 ** 3))
     print(7 in crange(7, 3, 2 ** 3))
+    print(1 in crange(3, 3, 2 ** 3))
