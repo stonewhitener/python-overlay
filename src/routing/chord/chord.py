@@ -6,6 +6,7 @@ import time
 
 from routing.chord.config import *
 from routing.chord.crange import crange
+from routing.routing import BaseNode
 from rpc.client import ServerProxy
 from rpc.server import RPCServer, DatagramRPCRequestHandler
 
@@ -14,47 +15,42 @@ def sha1(obj):
     return int(hashlib.sha1(pickle.dumps(obj)).hexdigest(), 16)
 
 
-class Chord:
+class Node(BaseNode):
     def __init__(self, address):
-        self.address = address
-        self.id = sha1(self.address)
+        super().__init__(address)
+        self.__id = sha1(self.address)
 
-        self.successor = None
-        self.finger = [None] * N_FINGER
+    @property
+    def id(self):
+        return self.__id
+
+
+class Chord(Node):
+    def __init__(self, address):
+        super().__init__(address)
+
+        self.successor = []
+        self.finger = []
         self.predecessor = None
 
         self.next = 0
-
-        s = threading.Timer(STABILIZE_RATIO, self.stabilize)
-        s.start()
-
-    def get_address(self):
-        return self.address
-
-    def get_id(self):
-        return self.id
-
-    def get_successor(self):
-        return self.successor
-
-    def get_predecessor(self):
-        return self.predecessor
+        self.stabilizer = threading.Timer(STABILIZE_RATIO, self.stabilize)
 
     def create(self):
-        self.successor = (self.id, self.address)
-        self.finger = [(self.id, self.address)] * N_FINGER
-        self.predecessor = None
+        self.successors = [Node(self.address)] * N_SUCCESSOR
+        self.finger = [Node(self.address)] * N_FINGER
+        self.predecessor = Node(self.address)
 
     def join(self, bootstrap):
-        n = ServerProxy(bootstrap)
-        self.successor = n.find_successor(self.id)
+        n = Node(bootstrap)
+        self.successors[0] = n.find_successor(self.id)
         self.predecessor = None
 
     def find_successor(self, id):
-        if id in crange(self.id, self.successor[0], ID_SPACE_SIZE):
-            return self.successor
+        if id in crange(self.id, self.successors[0].id, ID_SPACE_SIZE):
+            return self.successors
         else:
-            n = ServerProxy(self._closest_preceding_node(id)[1])
+            n = ServerProxy(self._closest_preceding_node(id))
             return n.find_successor(id)
 
     def _closest_preceding_node(self, id):
@@ -64,10 +60,10 @@ class Chord:
         return self.id, self.address
 
     def stabilize(self):
-        x = ServerProxy(ServerProxy(self.successor[1]).get_predecessor()[1])
-        if x.get_id() in crange(self.id, self.successor[0], ID_SPACE_SIZE):
-            self.successor = (x.get_id(), x.get_address())
-        successor = ServerProxy(self.successor[1])
+        x = ServerProxy(ServerProxy(self.successors[1]).get_predecessor()[1])
+        if x.get_id() in crange(self.id, self.successors[0], ID_SPACE_SIZE):
+            self.successors = (x.get_id(), x.get_address())
+        successor = ServerProxy(self.successors[1])
         successor.notify(self.address)
 
     def notify(self, address):
@@ -89,7 +85,8 @@ class Chord:
     def ping(self, id, address):
         return True
 
-if __name__ == '__main__':
+
+def main():
     class Node:
         def __init__(self, address):
             self.__server = RPCServer(address, DatagramRPCRequestHandler)
@@ -134,3 +131,7 @@ if __name__ == '__main__':
     # queries
     for i in range(10000):
         n[random.randrange(N_NODE)].lookup(random.randrange(0, 1000))
+
+
+if __name__ == '__main__':
+    main()
