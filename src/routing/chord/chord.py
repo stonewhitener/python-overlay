@@ -1,14 +1,12 @@
 import hashlib
 import pickle
 import random
-
-import sys
 import threading
 import time
 
-from routing.chord.crange import crange
 from routing.chord.config import *
-from rpc.client import ServerProxy, DatagramRequestSender
+from routing.chord.crange import crange
+from rpc.client import ServerProxy
 from rpc.server import RPCServer, DatagramRPCRequestHandler
 
 
