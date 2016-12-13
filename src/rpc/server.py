@@ -5,7 +5,6 @@ from socketserver import StreamRequestHandler, DatagramRequestHandler, Threading
 
 class RPCRequestHandler:
     def handle(self):
-        print('requested from ' + str(self.client_address))
         method, args = pickle.load(self.rfile)
         response = self.server.dispatch(method, args)
         pickle.dump(response, self.wfile)
@@ -49,9 +48,9 @@ class RPCDispatcher:
         return obj
 
 
-class RPCServer(ThreadingUDPServer, RPCDispatcher):
-    def __init__(self, server_address, RPCRequestHandlerClass, instance=None):
-        ThreadingUDPServer.__init__(self, server_address, RPCRequestHandlerClass)
+class RPCServer(ThreadingTCPServer, RPCDispatcher):
+    def __init__(self, server_address, instance=None):
+        ThreadingTCPServer.__init__(self, server_address, StreamRPCRequestHandler)
         RPCDispatcher.__init__(self, instance)
 
 
@@ -60,8 +59,7 @@ if __name__ == '__main__':
         def pow(self, base, exp):
             return base ** exp
 
-
-    s = RPCServer(('127.0.0.1', 49152), DatagramRPCRequestHandler, ExampleService())
+    s = RPCServer(('127.0.0.1', 49152), ExampleService())
     print('Serving Pickle-RPC on localhost port 49152')
     print('It is advisable to run this example server within a secure, closed network.')
     try:

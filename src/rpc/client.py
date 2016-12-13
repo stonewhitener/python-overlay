@@ -10,11 +10,12 @@ class StreamRequestSender:
 
     def send_request(self, address, request):
         with socket.socket(self.address_family, self.socket_type) as client_socket:
+            client_socket.connect(address)
             with client_socket.makefile('wb') as wfile:
                 pickle.dump(request, wfile)
             with client_socket.makefile('rb') as rfile:
                 response = pickle.load(rfile)
-                return response
+        return response
 
 
 class DatagramRequestSender(StreamRequestSender):
@@ -28,13 +29,13 @@ class DatagramRequestSender(StreamRequestSender):
             data = client_socket.recv(self.max_packet_size)
             with BytesIO(data) as rfile:
                 response = pickle.load(rfile)
-                return response
+        return response
 
 
 class ServerProxy:
-    def __init__(self, address, RequestSenderClass):
+    def __init__(self, address):
         self.__address = address
-        self.__request_sender = RequestSenderClass()
+        self.__request_sender = StreamRequestSender()
 
     def __send(self, method, args):
         request = (method, args)
@@ -58,5 +59,5 @@ class _Method:
 
 
 if __name__ == '__main__':
-    s = ServerProxy(('127.0.0.1', 49152), DatagramRequestSender)
+    s = ServerProxy(('127.0.0.1', 49152))
     print(s.pow(2, 160))
