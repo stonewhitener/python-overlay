@@ -2,57 +2,38 @@ import pickle
 import socket
 from io import BytesIO
 
-
-class StreamRequestSender:
-    max_packet_size = 8192
-    address_family = socket.AF_INET
-    socket_type = socket.SOCK_STREAM
-
-    def send_request(self, address, request):
-        with socket.socket(self.address_family, self.socket_type) as client_socket:
-            client_socket.connect(address)
-            with client_socket.makefile('wb') as wfile:
-                pickle.dump(request, wfile)
-            with client_socket.makefile('rb') as rfile:
-                response = pickle.load(rfile)
-        return response
-
-
-class DatagramRequestSender(StreamRequestSender):
-    socket_type = socket.SOCK_DGRAM
-
-    def send_request(self, address, request):
-        with socket.socket(self.address_family, self.socket_type) as client_socket:
-            with BytesIO() as wfile:
-                pickle.dump(request, wfile)
-                client_socket.sendto(wfile.getvalue(), address)
-            data = client_socket.recv(self.max_packet_size)
-            with BytesIO(data) as rfile:
-                response = pickle.load(rfile)
-        return response
+from rpc.message import RequestMessage, ResponseMessage
+from transport import tcp
 
 
 class ServerProxy:
-    def __init__(self, address):
+    def __init__(self, address, transport=tcp, timeout=None):
         self.__address = address
-        self.__request_sender = StreamRequestSender()
+        self.__transport = transport.ClientTransport()
+        self.__timeout = timeout
 
-    def __send(self, method, args):
-        request = (method, args)
-        response = self.__request_sender.send_request(self.__address, request)
-        return response
+        self.__variables = self.__prefetch_variable_names()
+
+    def __send_request(self, method, args):
+        request = pickle.dumps(RequestMessage(0, method, args))
+        response = pickle.loads(self.__transport.send_request(self.__address, request))
+        if type(response) is ResponseMessage:
+            return response.result
+
+    def __prefetch_variable_names(self):
+        return self.__send_request('prefetch', ())
 
     def __getattr__(self, name):
-        return _Method(self.__send, name)
+        if name in self.__variables:
+            return self.__send_request('__getattribute__', name)
+        else:
+            return _Method(self.__send_request, name)
 
 
 class _Method:
     def __init__(self, send, name):
         self.__send = send
         self.__name = name
-
-    def __getattr__(self, name):
-        return _Method(self.__send, "{}.{}".format(self.__name, name))
 
     def __call__(self, *args):
         return self.__send(self.__name, args)
