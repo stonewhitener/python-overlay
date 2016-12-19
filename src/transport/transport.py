@@ -133,14 +133,7 @@ except ImportError:
     import dummy_threading as threading
 from time import monotonic as time
 
-__all__ = ["BaseServer", "TCPServer", "UDPServer", "ForkingUDPServer",
-           "ForkingTCPServer", "ThreadingUDPServer", "ThreadingTCPServer",
-           "BaseRequestHandler", "StreamRequestHandler",
-           "DatagramRequestHandler", "ThreadingMixIn", "ForkingMixIn"]
-if hasattr(socket, "AF_UNIX"):
-    __all__.extend(["UnixStreamServer","UnixDatagramServer",
-                    "ThreadingUnixStreamServer",
-                    "ThreadingUnixDatagramServer"])
+__all__ = ["BaseServer", "BaseRequestHandler", "ThreadingMixIn", "ForkingMixIn"]
 
 # poll/select have the advantage of not requiring any extra file descriptor,
 # contrarily to epoll/kqueue (also, they require a single syscall).

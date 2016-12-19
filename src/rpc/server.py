@@ -1,7 +1,7 @@
 import pickle
 import sys
-from socketserver import StreamRequestHandler, DatagramRequestHandler, ThreadingTCPServer, ThreadingUDPServer
 
+import transport.tcp
 from rpc.message import RequestMessage, ResponseMessage, NotificationMessage
 
 
@@ -13,27 +13,16 @@ class RPCRequestHandler:
             result = self.server.dispatch(method, args)
             response = ResponseMessage(id, result)
             pickle.dump(response, self.wfile)
-        if type(request) is NotificationMessage:
-            method, args = request.method, request.args
-            self.server.dispatch(method, args)
 
 
-class StreamRPCRequestHandler(RPCRequestHandler, StreamRequestHandler):
-    pass
-
-
-class DatagramRPCRequestHandler(RPCRequestHandler, DatagramRequestHandler):
-    pass
-
-
-def _prefetch_variable_names(obj, name):
-    attribute = _resolve_dotted_attribute(obj, name)
-    variables = []
-    if hasattr(attribute, '__dict__'):
-        variables = [k for k in vars(attribute).keys() if not k.startswith('_')]
-    return variables
-
-
+# def _prefetch_variable_names(obj, name):
+#     attribute = _resolve_dotted_attribute(obj, name)
+#     variables = []
+#     if hasattr(attribute, '__dict__'):
+#         variables = [k for k in vars(attribute).keys() if not k.startswith('_')]
+#     return variables
+#
+#
 def _resolve_dotted_attribute(obj, dotted_attribute):
     if dotted_attribute == 'self':
         return obj
@@ -63,9 +52,9 @@ class RPCDispatcher:
             raise Exception('method "{}" is not supported'.format(method))
 
 
-class RPCServer(ThreadingTCPServer, RPCDispatcher):
+class RPCServer(transport.tcp.Server, transport.ThreadingMixIn, RPCDispatcher):
     def __init__(self, server_address, instance=None):
-        ThreadingTCPServer.__init__(self, server_address, StreamRPCRequestHandler)
+        transport.tcp.Server.__init__(self, server_address, RPCRequestHandler)
         RPCDispatcher.__init__(self, instance)
 
 

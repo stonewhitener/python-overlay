@@ -4,7 +4,6 @@ class BaseMessage:
 
 class RequestMessage(BaseMessage):
     def __init__(self, id, method, args):
-        super().__init__()
         self.__id = id
         self.__method = method
         self.__args = args
@@ -24,7 +23,6 @@ class RequestMessage(BaseMessage):
 
 class ResponseMessage(BaseMessage):
     def __init__(self, id, result):
-        super().__init__()
         self.__id = id
         self.__result = result
 
