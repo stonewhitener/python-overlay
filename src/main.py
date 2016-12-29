@@ -1,13 +1,11 @@
 import random
 
 
-N_NODE = 8
+N_NODE = 1000
 
 
 # create nodes
-n = []
-for _ in range(N_NODE):
-    n.append(Node(transport='UDP', routing='Chord'))
+n = [Node(transport='UDP', routing='Chord') for _ in range(N_NODE)]
 
 # create a new network
 n[0].create()
