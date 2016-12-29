@@ -7,12 +7,12 @@ N_NODE = 8
 # create nodes
 n = []
 for _ in range(N_NODE):
-    n.append(Node(transport=UDP, routing=Chord))
+    n.append(Node(transport='UDP', routing='Chord'))
 
 # create a new network
 n[0].create()
 
-# join the network with node 0
+# join the network with an existing node
 for i in range(1, N_NODE):
     n[i].join(n[random.randrange(i)])
 
