@@ -1,43 +1,28 @@
-import hashlib
-import pickle
-import random
 import threading
-import time
 
-from routing.chord.config import *
+from routing.chord.hash import sha1
 from routing.chord.crange import crange
-from routing.routing import BaseNode
-from rpc.client import ServerProxy
-from rpc.server import RPCServer, DatagramRPCRequestHandler
-
-
-def sha1(obj):
-    return int(hashlib.sha1(pickle.dumps(obj)).hexdigest(), 16)
-
-
-class Node(BaseNode):
-    def __init__(self, address, **kwargs):
-        super().__init__(address, **kwargs)
+from routing.chord.config import *
 
 
 class Chord:
     def __init__(self, address):
-        self.id = sha1(address)
         self.address = address
+        self.id = sha1(address)
 
         self.successor = None
         self.fingers = []
         self.predecessor = None
 
         self.next = 0
-        self.stabilizer = threading.Timer(STABILIZE_RATIO, self.stabilize)
+        self.stabilizer = threading.Timer(STABILIZATION_RATIO, self.stabilize)
 
     def create(self):
         self.successor = (self.id, self.address)
         self.predecessor = None
 
     def join(self, bootstrap):
-        n = ServerProxy(bootstrap)
+        n = Node(bootstrap)
         self.successor = n.find_successor(self.id)
         self.predecessor = None
 
@@ -45,26 +30,26 @@ class Chord:
         if id in crange(self.id, self.successor[0], ID_SPACE_SIZE):
             return self.successor
         else:
-            n = ServerProxy(self._closest_preceding_node(id))
+            n = Node(self._closest_preceding_node(id)[1])
             return n.find_successor(id)
 
     def _closest_preceding_node(self, id):
-        for i in range(N_FINGERS - 1, -1, -1):
-            if self.fingers[i][0] in crange(self.id, id, ID_SPACE_SIZE):
-                return self.fingers[i]
+        for finger in reversed(self.fingers):
+            if finger[0] in crange(self.id, id, ID_SPACE_SIZE):
+                return finger
         return self.id, self.address
 
     def stabilize(self):
-        x = ServerProxy(ServerProxy(self.successor[1]).get_predecessor()[1])
-        if x.get_id() in crange(self.id, self.successors[0], ID_SPACE_SIZE):
-            self.successor = (x.get_id(), x.get_address())
-        successor = ServerProxy(self.successor[1])
-        successor.notify(self.address)
+        x = Node(self.successor[1]).predecessor
+        if x[0] in crange(self.id, self.successor[0]):
+            self.successor = x
+        successor = Node(self.successor)
+        successor.notify(self.id, self.address)
 
-    def notify(self, address):
-        n = ServerProxy(address)
-        if self.predecessor is None or n.get_id() in crange(self.predecessor[0], self.id, ID_SPACE_SIZE):
-            self.predecessor = (n.get_id(), n.get_address())
+    def notify(self, id, address):
+        n = Node(address)
+        if self.predecessor is None or n.id in crange(self.predecessor[0], self.id):
+            self.predecessor = (n.id, n.address)
 
     def fix_finger(self):
         self.next += 1
@@ -73,6 +58,6 @@ class Chord:
         self.fingers[self.next] = self.find_successor(self.id + 2 ** self.next)
 
     def check_predecessor(self):
-        predecessor = ServerProxy(self.predecessor[1])
-        if predecessor.ping(self.id, self.address):
+        predecessor = Node(self.predecessor[1])
+        if predecessor.is_failed():
             self.predecessor = None
