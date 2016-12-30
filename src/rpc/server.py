@@ -1,21 +1,35 @@
 import pickle
 import sys
-from socketserver import StreamRequestHandler, DatagramRequestHandler, ThreadingTCPServer, ThreadingUDPServer
+
+import transport.tcp
+from rpc.message import RequestMessage, ResponseMessage, NotificationMessage
 
 
 class RPCRequestHandler:
     def handle(self):
-        method, args = pickle.load(self.rfile)
-        response = self.server.dispatch(method, args)
-        pickle.dump(response, self.wfile)
+        request = pickle.load(self.rfile)
+        if type(request) is RequestMessage:
+            id, method, args = request.id, request.method, request.args
+            result = self.server.dispatch(method, args)
+            response = ResponseMessage(id, result)
+            pickle.dump(response, self.wfile)
 
 
-class StreamRPCRequestHandler(RPCRequestHandler, StreamRequestHandler):
-    pass
-
-
-class DatagramRPCRequestHandler(RPCRequestHandler, DatagramRequestHandler):
-    pass
+# def _prefetch_variable_names(obj, name):
+#     attribute = _resolve_dotted_attribute(obj, name)
+#     variables = []
+#     if hasattr(attribute, '__dict__'):
+#         variables = [k for k in vars(attribute).keys() if not k.startswith('_')]
+#     return variables
+#
+#
+def _resolve_dotted_attribute(obj, dotted_attribute):
+    if dotted_attribute == 'self':
+        return obj
+    attributes = dotted_attribute.split('.')
+    for attribute in attributes:
+        obj = getattr(obj, attribute)
+    return obj
 
 
 class RPCDispatcher:
@@ -29,7 +43,7 @@ class RPCDispatcher:
         _method = None
         if self.__instance is not None:
             try:
-                _method = self._resolve_dotted_attribute(self.__instance, method)
+                _method = _resolve_dotted_attribute(self.__instance, method)
             except AttributeError:
                 pass
         if _method is not None:
@@ -37,20 +51,10 @@ class RPCDispatcher:
         else:
             raise Exception('method "{}" is not supported'.format(method))
 
-    @staticmethod
-    def _resolve_dotted_attribute(obj, dotted_attribute):
-        attributes = dotted_attribute.split('.')
-        for attribute in attributes:
-            if attribute.startswith('_'):
-                raise AttributeError('attempt to access private attribute "{}"'.format(attribute))
-            else:
-                obj = getattr(obj, attribute)
-        return obj
 
-
-class RPCServer(ThreadingTCPServer, RPCDispatcher):
+class RPCServer(transport.tcp.Server, transport.ThreadingMixIn, RPCDispatcher):
     def __init__(self, server_address, instance=None):
-        ThreadingTCPServer.__init__(self, server_address, StreamRPCRequestHandler)
+        transport.tcp.Server.__init__(self, server_address, RPCRequestHandler)
         RPCDispatcher.__init__(self, instance)
 
 
